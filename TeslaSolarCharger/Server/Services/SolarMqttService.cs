@@ -7,6 +7,7 @@ using TeslaSolarCharger.Shared.Contracts;
 using TeslaSolarCharger.Shared.Dtos.Contracts;
 using TeslaSolarCharger.Shared.Dtos.BaseConfiguration;
 using TeslaSolarCharger.Shared.Enums;
+using System.Security.Cryptography.X509Certificates;
 
 namespace TeslaSolarCharger.Server.Services;
 
@@ -40,10 +41,25 @@ public class SolarMqttService : ISolarMqttService
         {
             _logger.LogDebug("No Mqtt Options defined for solar power. Do not connect MQTT Client.");
         }
+
+        var caCert = new X509Certificate2("/app/venus-ca.crt");
+
         var mqttClientOptions = new MqttClientOptionsBuilder()
             .WithClientId(mqqtClientId)
             .WithTimeout(TimeSpan.FromSeconds(5))
             .WithTcpServer(mqttServer, mqttServerPort)
+            .WithTls(new MqttClientOptionsBuilderTlsParameters
+            {
+                UseTls = true,
+                AllowUntrustedCertificates = true,
+                IgnoreCertificateChainErrors = true,
+                IgnoreCertificateRevocationErrors = true,
+                CertificateValidationHandler = (context) =>
+                {
+                    return true;
+                },
+                Certificates = new List<X509Certificate> { caCert }
+            })
             .Build();
 
         if(!string.IsNullOrWhiteSpace(_configurationWrapper.SolarMqttUsername()) && !string.IsNullOrEmpty(_configurationWrapper.SolarMqttPassword()))
@@ -120,7 +136,7 @@ public class SolarMqttService : ISolarMqttService
             {
                 _logger.LogWarning("Received value does not match a topic");
             }
-            
+
             return Task.CompletedTask;
         };
 
